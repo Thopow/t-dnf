@@ -1,0 +1,219 @@
+#!/bin/bash
+#
+#T-DNF - A dnf wrapper..
+#  ______      ____
+# /_  __/___  / __ \____ _      __
+#  / / / __ \/ /_/ / __ \ | /| / /
+# / / / /_/ / ____/ /_/ / |/ |/ /
+#/_/  \____/_/    \____/|__/|__/
+#
+
+print_c() {
+     [[ $# == 0 ]] && return 1
+
+     declare -i TERM_COLS="$(tput cols)"
+     declare -i str_len="${#1}"
+     [[ $str_len -ge $TERM_COLS ]] && {
+          echo "$1";
+          return 0;
+     }
+
+     declare -i filler_len="$(( (TERM_COLS - str_len) / 2 ))"
+     [[ $# -ge 2 ]] && ch="${2:0:1}" || ch=" "
+     filler=""
+     for (( i = 0; i < filler_len; i++ )); do
+          filler="${filler}${ch}"
+     done
+
+     printf "%s%s%s" "$filler" "$1" "$filler"
+     [[ $(( (TERM_COLS - str_len) % 2 )) -ne 0 ]] && printf "%s" "${ch}"
+     printf "\n"
+
+     return 0
+}
+
+print_mlbc() {
+    local longest=0
+    local string_array=("${@}")
+    for i in "${string_array[@]}"; do
+      if [[ "${#i}" -gt "${longest}" ]]; then
+        local longest=${#i}
+        local longest_line="${i}" # Longest line
+      fi
+    done
+  
+    local edge=$(echo "$longest_line" | sed 's/./🭹/g' | sed 's/^🭰/🭹🭹🭹/' | sed 's/$/🭹🭹🭹🭹/')
+    local middle_edge=$(echo "$longest_line" | sed 's/./\ /g' | sed 's/^\ /🭰\  /' | sed 's/\ $/\ \ 🭵/')
+  
+    print_c "${edge}"
+    print_c "${middle_edge}"
+  
+    for i in "${string_array[@]}"; do
+      local length_i=${#i}
+      local length_ll="${#longest_line}"
+     short_l=`if [[ "${length_i}" -lt "${length_ll}"  ]]; then
+              printf "🭰 "
+              local remaining_spaces=$((length_ll-length_l))
+              printf "${i}"
+              while [[ ${remaining_spaces} -gt ${#i} ]]; do
+                      printf " "
+                      local remaining_spaces=$((remaining_spaces-1))
+              done
+              printf " 🭵\n"
+      else
+        echo -e "🭰 ${i} 🭵"
+      fi`
+      print_c "$short_l"
+    done
+     
+    print_c "${middle_edge}"
+    print_c "${edge}"
+}
+
+print_bc() {
+    str="$@"
+    len=$((${#str}+6))
+    TOP=`for i in $(seq $len); do echo -n '🭻'; done;`
+    MID=`echo "🭰   "$str" 🭵";`
+    BOT=`for i in $(seq $len); do echo -n '🭶'; done;`
+
+	print_c "$TOP"
+	print_c "$MID"
+	print_c "$BOT"
+}
+
+logo() {
+	print_c "  ______    ____  _   ________"
+	print_c " /_  __/   / __ \\/ | / / ____/"
+	print_c "  / /_____/ / / /  |/ / /_    "
+	print_c " / /_____/ /_/ / /|  / __/    "
+	print_c "/_/     /_____/_/ |_/_/       "
+	print_c "   DNF wrapper fedora         " 
+}
+
+line() {
+	print_c "━" "━"
+}
+
+insta() {
+	echo -e "Name of package/s: \c"
+	read PACK
+	sudo dnf install $PACK && print_bc "Install successful. Press Enter to continue."
+	read
+}
+
+info(){
+	echo -e "Enter Number:\c"
+	read NUM
+	LIST_I=$(dnf search $SEARC | awk '{ print $1 }' | sed '/==*/d' | cut -d "." -f1 | uniq)
+	INS=$(echo $LIST_I | cut -d" " -f$NUM)
+	INFO=$(echo "dnf info $INS")
+	$INFO 
+	print_bc " i/Install b/Back to Search \"Enter\" Back to Main Menu."
+	read goon 
+	case $goon in
+		i)
+		sudo dnf install $INS ;;
+		b)
+		serc ;;
+	esac
+}
+
+serc() {
+	TERM_C="$(tput cols)"
+	echo -e "Search for: \c"
+	read SEARC
+	dnf search $SEARC | awk '{ print $1 }' | sed '/==*/d' | cut -d "." -f1 | uniq | grep -n "$*" | column -c $TERM_C
+	print_bc " i/To install a package. d/Show package info.  s/New search. Enter to go back. "
+	read chois
+		case $chois in
+			i)
+				echo -e "Enter Number:\c"
+				read NUM
+				LIST_I=$(dnf search $SEARC | awk '{ print $1 }' | sed '/==*/d' | cut -d "." -f1 | uniq)
+				INS=$(echo $LIST_I | cut -d" " -f$NUM)
+				INSTALL=$(echo "sudo dnf install $INS")
+				$INSTALL 
+				print_bc "Press \"Enter\" to continue."
+				read;;
+			d)
+				info ;;	
+			s)				
+				serc ;;
+		esac
+}
+
+more() {
+	echo "	List of Main Commands:
+	
+	alias                     List or create command aliases
+	autoremove                remove all unneeded packages
+	check                     check for problems in the packagedb
+	check-update              check for available package upgrades
+	clean                     remove cached data
+	deplist                   List package's dependencies and what packages provide them
+	distro-sync               synchronize installed packages to the latest available versions
+	downgrade                 Downgrade a package
+	group                     display, or use, the groups information
+	help                      display a helpful usage message
+	history                   display, or use, the transaction history
+	makecache                 generate the metadata cache
+	mark                      mark or unmark installed packages as installed by user.
+	module                    Interact with Modules.
+	provides                  find what package provides the given value
+	reinstall                 reinstall a package
+	remove                    remove a package or packages from your system
+	repolist                  display the configured software repositories
+	repoquery                 search for packages matching keyword
+	repository-packages       run commands on top of all packages in given repository
+	shell                     run an interactive DNF shell
+	swap                      run an interactive DNF mod for remove and install one spec
+	updateinfo                display advisories about packages
+	upgrade                   upgrade a package or packages on your system
+	upgrade-minimal           upgrade, only packages who fix problems that affects your system"
+	print_bc "Enter full <command> <package>"
+	read COMMAND
+	[ -n "$COMMAND" ] && sudo dnf $COMMAND 
+	print_bc "Enter to continue"
+	read
+}
+
+menu() {
+	print_c "u/Update | i/Install | s/Search | si/Search for installed | m/More functions | q/Quit"
+}
+
+main() {
+	line
+	echo -e "What you like to do? : \n"
+	read chois 
+	case $chois in
+		u)
+			sudo dnf update &&	print_bc "Update successful. Press Enter to continue." 
+			read  ;;
+		i)
+			insta ;;
+		s)
+			serc ;;
+		si)
+			TERM_C="$(tput cols)"
+			echo -e "What package you\'r locking for? (Enter/to list all)\c"
+			read PACK
+			echo
+			dnf list installed | grep "$PACK"
+			print_bc "Enter to continue"
+			read ;;	
+		m)
+			more ;;	
+		q)
+			print_mlbc "    ____           ____" "   / __ )__  __   / __ )__  __" "  / __  / / / /  / __  / / / /" " / /_/ / /_/ /  / /_/ / /_/ / _ _" "/_____/\__, /  /_____/\__, (_|_|_)" "      /____/         /____/" ; sleep 1 ; clear -x ; exit ;;
+	esac
+}
+
+while true 
+do
+clear -x
+logo
+line
+menu
+main
+done
